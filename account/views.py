@@ -4,6 +4,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt import tokens
+from rest_framework_simplejwt.exceptions import InvalidToken
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.views import TokenRefreshView
 from django.contrib.auth import authenticate
 from django.conf import settings
 from django.middleware import csrf
@@ -76,3 +79,40 @@ class LoginView(APIView):
             return res
         
         return Response({'detail': 'Invalid Credentials!'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class CookieTokenRefreshSerializer(TokenRefreshSerializer):
+    refresh = None
+    def validate(self, attrs):
+        """ Validates the attributes of the serializer. """
+        attrs['refresh'] = self.context['request'].COOKIES.get('refresh')
+        if attrs['refresh']:
+            return super().validate(attrs)
+        else:
+            raise InvalidToken(
+                'No valid token found in cookie \'refresh\'')
+
+
+class CookieTokenRefreshView(TokenRefreshView):
+    serializer_class = CookieTokenRefreshSerializer
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        """
+        Finalize the response by setting the 'refresh' cookie if it exists in the response data.
+        If the 'refresh' cookie exists, it is set in the response with the appropriate expiration time,
+        secure, httponly, and samesite attributes. The 'refresh' key is then deleted from the response data.
+        The 'X-CSRFToken' header is set to the value of the 'csrftoken' cookie.
+        """
+        if response.data.get("refresh"):
+            response.set_cookie(
+                key=settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'],
+                value=response.data['refresh'],
+                expires=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'],
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                httponly=settings.SIMPLE_JWT['AUTH_COOKIE_HTTP_ONLY'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE']
+            )
+
+            del response.data["refresh"]
+        response["X-CSRFToken"] = request.COOKIES.get("csrftoken")
+        return super().finalize_response(request, response, *args, **kwargs)
