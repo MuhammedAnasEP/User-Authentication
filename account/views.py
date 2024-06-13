@@ -7,6 +7,8 @@ from rest_framework_simplejwt import tokens
 from rest_framework_simplejwt.exceptions import InvalidToken
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ParseError
 from django.contrib.auth import authenticate
 from django.conf import settings
 from django.middleware import csrf
@@ -116,3 +118,30 @@ class CookieTokenRefreshView(TokenRefreshView):
             del response.data["refresh"]
         response["X-CSRFToken"] = request.COOKIES.get("csrftoken")
         return super().finalize_response(request, response, *args, **kwargs)
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        """
+        This function is responsible for handling the POST request to logout the user. 
+        It first retrieves the refresh token from the request cookies. Then it creates a `RefreshToken` object using the retrieved refresh token.
+        After that, it blacklists the token by calling the `blacklist()` method.
+        Next, it creates a `Response` object and deletes the authentication and refresh token cookies from the response. It also deletes the `X-CSRFToken` and `csrftoken` cookies. 
+        Finally, it sets the `X-CSRFToken` header in the response to `None`.
+        """
+        try:
+            refreshToken = request.COOKIES.get(
+                settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
+            token = tokens.RefreshToken(refreshToken)
+            token.blacklist()
+
+            res = Response()
+            res.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE'])
+            res.delete_cookie(settings.SIMPLE_JWT['AUTH_COOKIE_REFRESH'])
+            res.delete_cookie("X-CSRFToken")
+            res.delete_cookie("csrftoken")
+            res["X-CSRFToken"]=None           
+            return res
+        
+        except:
+            raise ParseError("Invalid token")
