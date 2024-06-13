@@ -12,7 +12,7 @@ from rest_framework.exceptions import ParseError
 from django.contrib.auth import authenticate
 from django.conf import settings
 from django.middleware import csrf
-from .serializers import RegistrationSerializer, LoginSerializer
+from .serializers import RegistrationSerializer, LoginSerializer, UserSerializer
 from .models import User
 
 # Create your views here.
