@@ -13,6 +13,7 @@ from django.contrib.auth import authenticate
 from django.conf import settings
 from django.middleware import csrf
 from .serializers import RegistrationSerializer, LoginSerializer
+from .models import User
 
 # Create your views here.
 
@@ -145,3 +146,18 @@ class LogoutView(APIView):
         
         except:
             raise ParseError("Invalid token")
+
+class UserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        Retrieves the user information for the authenticated user.
+        """
+        try:
+            user = User.objects.get(id=request.user.id)
+        except User.DoesNotExist:
+            return Response(status_code=404)
+
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
